@@ -1,0 +1,12 @@
+# Sites allowed to talk to this connector.
+#
+# One per line. Restart the connector after editing.
+#
+# organizemyphone.com and localhost are always allowed - you do not need to
+# list them here. Add a line when you are testing a deployed copy of the
+# editor on a temporary URL, for example:
+#
+#   https://organize-my-phone-git-main-yourname.vercel.app
+#
+# Only add URLs you deployed yourself. Any site listed here can read and
+# rewrite your Home Screen once you pair with it.

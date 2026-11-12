@@ -1,0 +1,84 @@
+name: Build Windows app
+
+# Two ways to run this:
+#   - Actions tab > "Build Windows app" > Run workflow, and type a version.
+#   - Push a tag such as v3.0.0.
+# Either way the result is a release with OrganizeMyPhone.exe attached.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number for this release, for example 3.0.0"
+        required: true
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller httpx
+
+      - name: Run tests
+        run: |
+          python tests/test_layout_ops.py
+          python tests/test_connector_api.py
+
+      - name: Build OrganizeMyPhone.exe
+        run: >
+          pyinstaller --onefile --noconsole --name OrganizeMyPhone
+          --add-data "static;static"
+          --collect-all pymobiledevice3
+          --collect-submodules uvicorn
+          run.py
+
+      - name: Check the built app actually starts
+        shell: pwsh
+        run: |
+          $env:OMP_NO_BROWSER = "1"
+          $app = Start-Process dist\OrganizeMyPhone.exe -PassThru
+          $started = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 2
+            try {
+              $hello = Invoke-RestMethod http://127.0.0.1:8777/api/hello
+              if ($hello.product -eq "Organize My Phone") { $started = $true; break }
+            } catch {}
+          }
+          Get-Process OrganizeMyPhone -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $started) { throw "The built app did not answer on port 8777." }
+          Write-Host "Built app started and answered: version $($hello.connectorVersion)"
+
+      # Signing goes here once a Microsoft Trusted Signing account exists.
+      # Until then Windows shows a SmartScreen warning on download.
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OrganizeMyPhone
+          path: dist/OrganizeMyPhone.exe
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
+          files: dist/OrganizeMyPhone.exe
+          body: |
+            Organize My Phone for Windows.
+
+            Needs Apple Devices (free, Microsoft Store) and an iPhone that trusts this PC.
+            This build is not code-signed yet, so Windows may warn before running it:
+            choose More info, then Run anyway.
+
+            Source for this exact build is this tagged commit (GPL-3.0).

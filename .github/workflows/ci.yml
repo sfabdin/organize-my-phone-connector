@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run layout tests
+        run: python tests/test_layout_ops.py
+
+      - name: Run uninstall guard tests
+        run: |
+          python -m pip install fastapi httpx
+          python tests/test_connector_api.py
+
+      - name: Check nothing proprietary was committed
+        run: |
+          if [ -d web ]; then
+            echo "::error::web/ must never be committed to this repository."
+            exit 1
+          fi

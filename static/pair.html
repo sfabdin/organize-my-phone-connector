@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pairing code &middot; Organize My Phone</title>
+<style>
+:root{--bg:#f3f5f8;--panel:#fff;--text:#111318;--muted:#6b7280;--line:#e0e4e9;--blue:#2563eb}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);color:var(--text);display:flex;align-items:center;
+  justify-content:center;min-height:100vh;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  padding:34px 36px;max-width:440px;width:100%;text-align:center;
+  box-shadow:0 2px 20px rgba(17,19,24,.06)}
+h1{font-size:19px;margin:0 0 6px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 26px}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:46px;letter-spacing:12px;
+  font-weight:700;padding:18px 0 14px;min-height:74px}
+.none{font-size:15px;letter-spacing:0;font-weight:400;color:var(--muted);
+  font-family:inherit;padding-top:26px}
+.hint{font-size:13px;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:16px;margin-top:10px}
+.warn{font-size:12.5px;color:var(--muted);margin-top:14px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Pairing code</h1>
+  <p class="sub">Type this into Organize My Phone in your browser.</p>
+  <div class="code none" id="code">Waiting for a pairing request&hellip;</div>
+  <p class="hint">The code changes every few minutes and only works once.</p>
+  <p class="warn">If you did not just click Connect on organizemyphone.com, close this
+     window and do not share the code with anyone.</p>
+</div>
+<script>
+async function poll(){
+  try{
+    const r = await fetch("/api/pair/code");
+    const j = await r.json();
+    const el = document.getElementById("code");
+    if(j.code){
+      el.textContent = j.code;
+      el.classList.remove("none");
+    }else{
+      el.textContent = "Waiting for a pairing request\u2026";
+      el.classList.add("none");
+    }
+  }catch(e){ /* connector shutting down; the next tick will retry */ }
+}
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>
