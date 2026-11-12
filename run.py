@@ -18,6 +18,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.request
 import webbrowser
@@ -41,8 +42,32 @@ def _who_is_listening(port: int) -> dict | None:
         return None
 
 
+def _ensure_standard_streams() -> None:
+    """
+    A windowless Windows app has no stdout or stderr at all: both are None.
+    Logging and the web server both write to them on start-up and crash on
+    None, so give them somewhere harmless to write.
+    """
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name) is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+
+
+def _record_failure(message: str) -> None:
+    """Leave a trace on disk, since a windowless app cannot print one."""
+    try:
+        config.ensure_directories()
+        with open(config.DATA_DIR / "startup-error.txt", "w", encoding="utf-8") as handle:
+            handle.write(message + "\n\n" + traceback.format_exc())
+    except OSError:
+        pass
+
+
 def _alert(title: str, message: str) -> None:
     """A dialog box, because a frozen app has no console to print to."""
+    _record_failure(message)
+    if os.environ.get("OMP_NO_BROWSER"):
+        return  # automated run: nobody is there to dismiss a dialog
     try:
         ctypes.windll.user32.MessageBoxW(None, message, title, 0x40)
     except Exception:
@@ -59,6 +84,7 @@ def _open_browser_when_ready(port: int) -> None:
 
 
 def main() -> int:
+    _ensure_standard_streams()
     port = config.DEFAULT_PORT
 
     # Already running? Don't fail with a socket error - just bring it forward.
@@ -88,7 +114,8 @@ def main() -> int:
         threading.Thread(target=_open_browser_when_ready, args=(port,), daemon=True).start()
 
     server = uvicorn.Server(
-        uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", access_log=False)
+        uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning",
+                       access_log=False, log_config=None)
     )
     app.state.server = server  # lets the editor's Quit button stop the app
 
