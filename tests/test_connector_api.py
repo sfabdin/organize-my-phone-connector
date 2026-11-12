@@ -19,7 +19,6 @@ os.environ["LOCALAPPDATA"] = tempfile.mkdtemp()
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import bridge  # noqa: E402
-import config as config_module  # noqa: E402
 import layout_ops as L  # noqa: E402
 
 
@@ -166,25 +165,53 @@ def test_foreign_host_header_is_refused():
     assert rebound.get("/").status_code == 403
 
 
+# A stand-in for the editor page. The real one lives in the website repository,
+# so these tests must not depend on it being on disk or on the site being up.
+FAKE_EDITOR = (
+    "<html><head><title>Organize My Phone</title></head><body>"
+    '<script>const T = "__CONNECTOR_TOKEN__"; fetch("/api/layout");</script></body></html>'
+)
+
+
 def test_editor_page_is_only_given_to_a_direct_visit():
     """The page at / carries the token, so no other site may fetch or frame it."""
-    assert client.get("/").status_code == 200
-    # Even the product's own website must pair rather than read the page.
-    assert client.get("/", headers={"Origin": "https://organizemyphone.com"}).status_code == 403
-    assert client.get("/", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors",
-                                    "Sec-Fetch-Dest": "iframe"}).status_code == 403
-    link = client.get("/", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate",
-                                    "Sec-Fetch-Dest": "document"})
-    assert link.status_code == 200
-    assert link.headers["x-frame-options"] == "DENY"
+    import editor_source
+    real_load = editor_source.load
+    editor_source.load = lambda: FAKE_EDITOR
+    try:
+        page = client.get("/")
+        assert page.status_code == 200
+        assert security.get_or_create_token() in page.text
+        assert "__CONNECTOR_TOKEN__" not in page.text
+        # Even the product's own website must pair rather than read the page.
+        assert client.get("/", headers={"Origin": "https://organizemyphone.com"}).status_code == 403
+        assert client.get("/", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors",
+                                        "Sec-Fetch-Dest": "iframe"}).status_code == 403
+        link = client.get("/", headers={"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate",
+                                        "Sec-Fetch-Dest": "document"})
+        assert link.status_code == 200
+        assert link.headers["x-frame-options"] == "DENY"
+    finally:
+        editor_source.load = real_load
+
+
+def test_status_page_when_the_editor_cannot_be_found():
+    import editor_source
+    real_load = editor_source.load
+    editor_source.load = lambda: None
+    try:
+        page = client.get("/")
+        assert page.status_code == 200
+        assert "could not be loaded" in page.text
+    finally:
+        editor_source.load = real_load
 
 
 def test_editor_download_must_be_the_editor():
     import editor_source
     assert not editor_source.looks_like_editor("<html><title>404: NOT_FOUND</title></html>")
     assert not editor_source.looks_like_editor("")
-    real = config_module.DEV_EDITOR_FILE.read_text(encoding="utf-8")
-    assert editor_source.looks_like_editor(real)
+    assert editor_source.looks_like_editor(FAKE_EDITOR)
 
 
 if __name__ == "__main__":
