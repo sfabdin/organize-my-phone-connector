@@ -53,8 +53,11 @@ class FakePhone(bridge.DeviceBridge):
     async def get_icon_png(self, bundle_id):
         return None
 
-    async def list_user_apps(self):
-        return {i["bundleIdentifier"]: {"name": i["displayName"]}
+    async def list_user_apps(self, with_sizes=False):
+        sizes = {"com.chase": (300, 50), "com.spotify": (200, 9000), "com.waze.iphone": (100, 100)}
+        return {i["bundleIdentifier"]: {"name": i["displayName"],
+                                        "appBytes": sizes[i["bundleIdentifier"]][0] if with_sizes else 0,
+                                        "dataBytes": sizes[i["bundleIdentifier"]][1] if with_sizes else 0}
                 for i in L.iter_leaves(self.state)
                 if not i["bundleIdentifier"].startswith("com.apple.")}
 
@@ -156,6 +159,17 @@ def test_restoring_an_old_snapshot_skips_uninstalled_apps():
     assert out.status_code == 200
     bundles = {i["bundleIdentifier"] for i in L.iter_leaves(phone.state)}
     assert "com.chase" not in bundles
+
+
+def test_app_sizes_are_listed_biggest_first_with_location():
+    reset()
+    assert client.get("/api/apps/sizes").status_code == 401
+    out = client.get("/api/apps/sizes", headers=AUTH).json()
+    assert [a["bundleId"] for a in out["apps"]] == ["com.spotify", "com.chase", "com.waze.iphone"]
+    assert out["apps"][0]["totalBytes"] == 9200
+    assert out["apps"][2]["where"] == 'the "Travel" folder'
+    assert out["totalBytes"] == 9750
+    assert phone.deleted == []
 
 
 def test_foreign_host_header_is_refused():

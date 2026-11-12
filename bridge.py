@@ -109,8 +109,12 @@ class DeviceBridge(ABC):
     async def get_icon_png(self, bundle_id: str) -> bytes | None:
         ...
 
-    async def list_user_apps(self) -> dict[str, dict[str, Any]]:
-        """bundle id -> {"name": ...} for every app the user installed."""
+    async def list_user_apps(self, with_sizes: bool = False) -> dict[str, dict[str, Any]]:
+        """
+        bundle id -> {"name": ...} for every app the user installed. With
+        `with_sizes`, each entry also has "appBytes" and "dataBytes"; the phone
+        takes noticeably longer to answer that.
+        """
         raise NotImplementedError(f"{self.name} bridge cannot list apps.")
 
     async def uninstall_app(self, bundle_id: str) -> None:
@@ -209,12 +213,14 @@ class PyMobileDevice3Bridge(DeviceBridge):
             raise BridgeError("This pymobiledevice3 build has no installation service.") from exc
         return InstallationProxyService(lockdown=lockdown)
 
-    async def list_user_apps(self) -> dict[str, dict[str, Any]]:
+    async def list_user_apps(self, with_sizes: bool = False) -> dict[str, dict[str, Any]]:
         try:
             async with self._lock:
                 async with self._session() as lockdown:
                     proxy = self._installation_proxy(lockdown)
-                    apps = await _maybe_await(proxy.get_apps(application_type="User"))
+                    apps = await _maybe_await(
+                        proxy.get_apps(application_type="User", calculate_sizes=with_sizes)
+                    )
         except BridgeError:
             raise
         except Exception as exc:
@@ -225,6 +231,8 @@ class PyMobileDevice3Bridge(DeviceBridge):
             info = info if isinstance(info, dict) else {}
             out[str(bundle)] = {
                 "name": info.get("CFBundleDisplayName") or info.get("CFBundleName") or str(bundle),
+                "appBytes": int(info.get("StaticDiskUsage") or 0),
+                "dataBytes": int(info.get("DynamicDiskUsage") or 0),
             }
         return out
 

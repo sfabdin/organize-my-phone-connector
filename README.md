@@ -40,6 +40,9 @@ Or double-click `run.bat`.
 
 Snapshots are plain JSON in `%LOCALAPPDATA%\OrganizeMyPhone\snapshots`.
 
+It can also list every app you installed by size, which only reads from the
+phone.
+
 **Uninstall is the one thing a snapshot cannot undo.** It deletes the app and
 its data. The connector only does it after a preview request, a single-use
 confirmation that expires in three minutes, and the typed word DELETE.

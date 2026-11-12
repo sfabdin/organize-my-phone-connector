@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 PRODUCT_NAME = "Organize My Phone"
-CONNECTOR_VERSION = "3.1.0"
+CONNECTOR_VERSION = "3.2.0"
 
 # Protocol version the web app negotiates against. Bump when the API contract
 # changes in a way an older hosted frontend cannot handle.

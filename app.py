@@ -555,6 +555,32 @@ def _bundles_on_home_screen(layout: list[Any]) -> dict[str, str]:
     return found
 
 
+@app.get("/api/apps/sizes")
+async def app_sizes():
+    """Every app the user installed, biggest first. Read-only."""
+    installed = await bridge.list_user_apps(with_sizes=True)
+    layout = await read_layout()
+    names = _bundles_on_home_screen(layout)
+    where = {}
+    for key, place in layout_ops.locations(layout).items():
+        if key.startswith("app:"):
+            where.setdefault(key.split(":", 1)[1], place)
+
+    apps = []
+    for bundle, info in installed.items():
+        app_bytes, data_bytes = info.get("appBytes", 0), info.get("dataBytes", 0)
+        apps.append({
+            "bundleId": bundle,
+            "name": names.get(bundle) or info.get("name") or bundle,
+            "appBytes": app_bytes,
+            "dataBytes": data_bytes,
+            "totalBytes": app_bytes + data_bytes,
+            "where": where.get(bundle),
+        })
+    apps.sort(key=lambda a: (-a["totalBytes"], a["name"].lower()))
+    return {"apps": apps, "totalBytes": sum(a["totalBytes"] for a in apps)}
+
+
 @app.post("/api/apps/uninstall/prepare")
 async def uninstall_prepare(body: UninstallPrepareRequest):
     requested = list(dict.fromkeys(b.strip() for b in body.bundleIds if b and b.strip()))
