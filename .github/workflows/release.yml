@@ -63,8 +63,8 @@ jobs:
             $data = Join-Path $env:LOCALAPPDATA "OrganizeMyPhone"
             foreach ($name in "startup-error.txt", "connector.log") {
               $file = Join-Path $data $name
-              if (Test-Path $file) { Write-Host "----- $name -----"; Get-Content $file -Tail 60 }
-              else { Write-Host "----- $name: not written -----" }
+              if (Test-Path $file) { Write-Host "----- ${name} -----"; Get-Content $file -Tail 60 }
+              else { Write-Host "----- ${name} was not written -----" }
             }
             throw "The built app did not answer on port 8777."
           }
